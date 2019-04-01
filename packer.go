@@ -10,6 +10,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// &bolt.Options{Timeout: 1 * time.Second}
 func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
 	return getOrCreateDb(path, mode, options)
 }
@@ -24,7 +25,6 @@ func getOrCreateDb(gzFilename string, mode os.FileMode, options *bolt.Options) (
 	if err != nil {
 		return nil, nil, errors.New("cannot create temporary file")
 	}
-	defer os.Remove(tmpFile.Name())
 
 	db, err = bolt.Open(tmpFile.Name(), mode, options)
 	if err != nil {
