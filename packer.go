@@ -73,20 +73,18 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 }
 
 func WriteToGz(db *bolt.DB, gzFilename string) error {
-	f, err := os.OpenFile(gzFilename, os.O_RDWR|os.O_CREATE, 0700)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+	return db.View(func(tx *bolt.Tx) error {
+		f, err := os.OpenFile(gzFilename, os.O_RDWR|os.O_CREATE, 0700)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
 
-	zw := gzip.NewWriter(f)
-	zw.Comment = "unit test db"
-	defer zw.Close()
+		zw := gzip.NewWriter(f)
+		zw.Comment = "unit test db"
+		defer zw.Close()
 
-	err = db.View(func(tx *bolt.Tx) error {
-		_, err := tx.WriteTo(zw)
+		_, err = tx.WriteTo(zw)
 		return err
 	})
-
-	return err
 }
