@@ -74,7 +74,7 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 
 func WriteToGz(db *bolt.DB, gzFilename string) error {
 	return db.View(func(tx *bolt.Tx) error {
-		f, err := os.OpenFile(gzFilename, os.O_RDWR|os.O_CREATE, 0700)
+		f, err := os.OpenFile(gzFilename, os.O_WRONLY, 0700)
 		if err != nil {
 			return err
 		}
