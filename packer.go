@@ -57,7 +57,6 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "cannot create temporary file")
 	}
-	defer os.Remove(tmpFile.Name())
 
 	_, err = tmpFile.Write(uncompressed)
 	if err != nil {
