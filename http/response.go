@@ -16,7 +16,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// as I can't gob encode the response body (which is a Reader) or the TLS field, I will use this instead
+// GobResponse is here because I can't gob encode the response body (which is a Reader) or the TLS field
 type GobResponse struct {
 	Status           string
 	StatusCode       int
@@ -33,6 +33,8 @@ type GobResponse struct {
 	Request          *http.Request
 }
 
+// FromResponse fetches data from a http response. Data is supposed to be encode-able by gob,
+// so readers like response.Body won't do
 func (rg *GobResponse) FromResponse(r http.Response) error {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -56,8 +58,10 @@ func (rg *GobResponse) FromResponse(r http.Response) error {
 	return nil
 }
 
+// ToResponse restores a response from a GobResponse
 func (rg *GobResponse) ToResponse() (r *http.Response) {
 	r = new(http.Response)
+
 	r.Status = rg.Status
 	r.StatusCode = rg.StatusCode
 	r.Proto = rg.Proto
@@ -72,9 +76,10 @@ func (rg *GobResponse) ToResponse() (r *http.Response) {
 	r.Trailer = rg.Trailer
 	r.Request = rg.Request
 
-	return nil
+	return
 }
 
+// FetchUrls performs the requests in parallel and returns the responses (and errors)
 func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.Response, errs []error) {
 	type reqRespErr struct {
 		req  *http.Request
@@ -113,6 +118,7 @@ func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.
 	return
 }
 
+// DumpResponses fetches responses and dumps them into a gzipped bbolt database
 func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, gzHeader *gzip.Header) (err error) {
 	// load db from compressed outputPath of create a new tmp file for it
 	db, err := gzbolt.Open(outputPath, &bbolt.Options{Timeout: 1 * time.Second})
@@ -220,6 +226,7 @@ func decodeResponse(from []byte) (*http.Response, error) {
 	return responseForBin.ToResponse(), nil
 }
 
+// GetResponsesFromDB reads a bbolt db and looks for the existing responses
 func GetResponsesFromDB(db *bbolt.DB, bucketName []byte) (responses []*http.Response, err error) {
 	err = db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
