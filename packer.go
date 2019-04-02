@@ -2,6 +2,7 @@ package gz_boltdb
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
@@ -14,6 +15,11 @@ import (
 func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
 	db, tmpFile, err = loadDbFromGz(path)
 	if err == nil {
+		return
+	}
+
+	if info, err := os.Stat(path); !os.IsNotExist(err) {
+		err = fmt.Errorf("file '%s' exists, but the db was not loaded\nFileInfo: %v", path, info)
 		return
 	}
 
