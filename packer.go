@@ -1,4 +1,4 @@
-package gz_boltdb
+package gzbolt
 
 import (
 	"compress/gzip"
@@ -11,9 +11,9 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// &bolt.Options{Timeout: 1 * time.Second}
-func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
-	db, tmpFile, err = loadDbFromGz(path)
+// Open behaves like bolt's Open, but works with gz and temp files
+func Open(path string, mode os.FileMode, options *bolt.Options, perm os.FileMode) (db *bolt.DB, tmpFile *os.File, err error) {
+	db, tmpFile, err = loadDbFromGz(path, perm)
 	if err == nil {
 		return
 	}
@@ -37,9 +37,9 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tm
 }
 
 // loadDbFromGz unpacks and loads a bolt database
-func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
+func loadDbFromGz(gzPath string, perm os.FileMode) (db *bolt.DB, tmpFile *os.File, err error) {
 	var f *os.File
-	if f, err = os.OpenFile(gzPath, os.O_RDONLY, 0700); err != nil {
+	if f, err = os.OpenFile(gzPath, os.O_RDONLY, perm); err != nil {
 		err = errors.Wrapf(err, "could not open file '%s'", gzPath)
 		return
 	}
@@ -62,7 +62,7 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 		return
 	}
 
-	// create in /tmp
+	// unpack in /tmp
 	tmpFile, err = ioutil.TempFile("", "gz-bolt-*.db")
 	if err != nil {
 		err = errors.Wrap(err, "cannot create temporary file")
@@ -84,9 +84,10 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 	return
 }
 
-func WriteToGz(db *bolt.DB, gzFilename string) error {
+// WriteToGz dumps the db to a gz file at path
+func WriteToGz(db *bolt.DB, path string, perm os.FileMode) error {
 	return db.View(func(tx *bolt.Tx) error {
-		f, err := os.OpenFile(gzFilename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0700)
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 		if err != nil {
 			return err
 		}
