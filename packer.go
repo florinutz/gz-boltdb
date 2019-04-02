@@ -96,8 +96,8 @@ func unpack(gzPath string) (tmpFile *os.File, err error) {
 	return
 }
 
-// WriteToGz dumps the db to a gz file at path
-func WriteToGz(db *bolt.DB, path string, perm os.FileMode) error {
+// WriteToGz dumps the db to a gz file at path. The file is overwritten if it exists. gzHeaders can be passed.
+func WriteToGz(db *bolt.DB, path string, perm os.FileMode, gzHeader *gzip.Header) error {
 	return db.View(func(tx *bolt.Tx) error {
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 		if err != nil {
@@ -106,7 +106,9 @@ func WriteToGz(db *bolt.DB, path string, perm os.FileMode) error {
 		defer f.Close()
 
 		zw := gzip.NewWriter(f)
-		zw.Comment = "unit test db"
+		if gzHeader != nil {
+			zw.Header = *gzHeader
+		}
 		defer zw.Close()
 
 		n, err := tx.WriteTo(zw)
