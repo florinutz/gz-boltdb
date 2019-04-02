@@ -18,7 +18,7 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tm
 		return
 	}
 
-	if info, err := os.Stat(path); !os.IsNotExist(err) {
+	if info, e := os.Stat(path); !os.IsNotExist(e) {
 		err = fmt.Errorf("file '%s' exists, but the db was not loaded\nFileInfo: %v", path, info)
 		return
 	}
