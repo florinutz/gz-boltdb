@@ -12,10 +12,13 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Open behaves like bolt's Open, but works with gz and temp files
-func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
-	db, tmpFile, err = loadDbFromGz(path)
+// Open behaves like bolt's Open, but works by unpacking the path gz file into a temporary file
+// and using that as the db.
+// The options param is used while opening the database in the temporary file
+func Open(gzFilePath string, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
+	db, tmpFile, err = loadDbFromGz(gzFilePath)
 	if err == nil {
+		// unpacking and bolt.Open succeeded
 		return
 	}
 
@@ -23,6 +26,7 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tm
 	if err != nil {
 		return nil, nil, errors.New("cannot create temporary file")
 	}
+	tmpFile.Close()
 
 	db, err = bolt.Open(tmpFile.Name(), 0600, options)
 	if err != nil {
