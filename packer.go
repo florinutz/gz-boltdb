@@ -34,41 +34,52 @@ func getOrCreateDb(gzFilename string, mode os.FileMode, options *bolt.Options) (
 	return db, tmpFile, nil
 }
 
+// loadDbFromGz unpacks and loads a bolt database
 func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 	f, err := os.OpenFile(gzPath, os.O_RDONLY, 0700)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "could not open file '%s'", gzPath)
+		err = errors.Wrapf(err, "could not open file '%s'", gzPath)
+		return
 	}
 	defer f.Close()
 
 	zr, err := gzip.NewReader(f)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "could not instantiate gz reader from '%s'", gzPath)
+		err = errors.Wrapf(err, "could not instantiate gz reader from '%s'", gzPath)
+		return
 	}
 
 	var uncompressed []byte
-	_, err = zr.Read(uncompressed)
+	n, err := zr.Read(uncompressed)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "could not read gz contents from '%s'", gzPath)
+		err = errors.Wrapf(err, "could not read gz contents from '%s'", gzPath)
+		return
+	}
+	if n == 0 {
+		err = errors.New("nothing was uncompressed")
+		return
 	}
 
 	// create in /tmp
-	tmpFile, err = ioutil.TempFile("", "bolt-*.db")
+	tmpFile, err = ioutil.TempFile("", "gz-bolt-*.db")
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot create temporary file")
+		err = errors.Wrap(err, "cannot create temporary file")
+		return
 	}
 
 	_, err = tmpFile.Write(uncompressed)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "can't write contents to tmp file")
+		err = errors.Wrap(err, "can't write contents to tmp file")
+		return
 	}
 
 	db, err = bolt.Open(tmpFile.Name(), 0640, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "couldn't create/open bolt db at path '%s'", gzPath)
+		err = errors.Wrapf(err, "couldn't create/open bolt db at path '%s'", gzPath)
+		return
 	}
 
-	return db, tmpFile, nil
+	return
 }
 
 func WriteToGz(db *bolt.DB, gzFilename string) error {
