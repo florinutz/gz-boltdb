@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -33,7 +34,7 @@ type GobResponse struct {
 	Request          *http.Request
 }
 
-func (rg *GobResponse) fromResponse(r http.Response) error {
+func (rg *GobResponse) FromResponse(r http.Response) error {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return err
@@ -56,7 +57,7 @@ func (rg *GobResponse) fromResponse(r http.Response) error {
 	return nil
 }
 
-func (rg *GobResponse) toResponse() (r *http.Response) {
+func (rg *GobResponse) ToResponse() (r *http.Response) {
 	r = new(http.Response)
 	r.Status = rg.Status
 	r.StatusCode = rg.StatusCode
@@ -182,11 +183,11 @@ func getKeyBytes(req http.Request) (key []byte, err error) {
 }
 
 func encodeResponse(resp *http.Response) (content []byte, err error) {
-	responseForGob := GobResponse{}
+	responseForBin := GobResponse{}
 
-	gob.Register(responseForGob)
+	gob.Register(responseForBin)
 
-	err = responseForGob.fromResponse(*resp)
+	err = responseForBin.FromResponse(*resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't prepare response for converting to binary")
 	}
@@ -194,12 +195,52 @@ func encodeResponse(resp *http.Response) (content []byte, err error) {
 	var encodedBuffer bytes.Buffer
 	encoder := gob.NewEncoder(&encodedBuffer)
 
-	err = encoder.Encode(responseForGob)
+	err = encoder.Encode(responseForBin)
 	if err != nil {
 		return
 	}
 
 	content = encodedBuffer.Bytes()
+
+	return
+}
+
+func decodeResponse(from []byte) (*http.Response, error) {
+	responseForBin := GobResponse{}
+
+	// gob.Register(responseForBin)
+
+	decodedBuffer := bytes.NewReader(from)
+	decoder := gob.NewDecoder(decodedBuffer)
+
+	err := decoder.Decode(responseForBin)
+	if err != nil {
+		return nil, err
+	}
+
+	return responseForBin.ToResponse(), nil
+}
+
+func GetResponsesFromDB(db *bbolt.DB, bucketName []byte) (responses []*http.Response, err error) {
+	err = db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketName))
+		if bucket == nil {
+			return fmt.Errorf("no such bucket '%s'", bucketName)
+		}
+		if err := bucket.ForEach(func(k, v []byte) error {
+			resp, err := decodeResponse(v)
+			if err != nil {
+				return err
+			}
+			responses = append(responses, resp)
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		return nil
+	})
 
 	return
 }
