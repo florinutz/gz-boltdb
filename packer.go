@@ -12,13 +12,9 @@ import (
 
 // &bolt.Options{Timeout: 1 * time.Second}
 func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
-	return getOrCreateDb(path, mode, options)
-}
-
-func getOrCreateDb(gzFilename string, mode os.FileMode, options *bolt.Options) (*bolt.DB, *os.File, error) {
-	db, tmpFile, err := loadDbFromGz(gzFilename)
+	db, tmpFile, err = loadDbFromGz(path)
 	if err == nil {
-		return db, tmpFile, nil
+		return
 	}
 
 	tmpFile, err = ioutil.TempFile("", "bolt-*.db")
@@ -36,8 +32,8 @@ func getOrCreateDb(gzFilename string, mode os.FileMode, options *bolt.Options) (
 
 // loadDbFromGz unpacks and loads a bolt database
 func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
-	f, err := os.OpenFile(gzPath, os.O_RDONLY, 0700)
-	if err != nil {
+	var f *os.File
+	if f, err = os.OpenFile(gzPath, os.O_RDONLY, 0700); err != nil {
 		err = errors.Wrapf(err, "could not open file '%s'", gzPath)
 		return
 	}
