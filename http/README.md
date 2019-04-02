@@ -1,0 +1,1 @@
+This handles the binary encoding and decoding of http requests and responses

@@ -1,2 +1,2 @@
 # gz-boltdb
-A simple wrapper around boltdb in order to provide compression for the database
+A thin wrapper around [boltdb](https://github.com/etcd-io/bbolt) that provides GZ compression for the database file.
