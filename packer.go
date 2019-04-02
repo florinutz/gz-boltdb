@@ -14,7 +14,7 @@ import (
 
 // Open behaves like bolt's Open, but works with gz and temp files
 func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
-	db, tmpFile, err = loadDbFromGz(path, mode)
+	db, tmpFile, err = loadDbFromGz(path)
 	if err == nil {
 		return
 	}
