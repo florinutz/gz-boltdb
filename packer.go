@@ -84,7 +84,7 @@ func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 
 func WriteToGz(db *bolt.DB, gzFilename string) error {
 	return db.View(func(tx *bolt.Tx) error {
-		f, err := os.OpenFile(gzFilename, os.O_WRONLY|os.O_CREATE, 0700)
+		f, err := os.OpenFile(gzFilename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0700)
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,11 @@ func WriteToGz(db *bolt.DB, gzFilename string) error {
 		zw.Comment = "unit test db"
 		defer zw.Close()
 
-		_, err = tx.WriteTo(zw)
+		n, err := tx.WriteTo(zw)
+		if n == 0 {
+			return errors.New("nothing was compressed")
+		}
+
 		return err
 	})
 }
