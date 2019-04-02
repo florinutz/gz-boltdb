@@ -218,7 +218,7 @@ func decodeResponse(from []byte) (*http.Response, error) {
 	decodedBuffer := bytes.NewReader(from)
 	decoder := gob.NewDecoder(decodedBuffer)
 
-	err := decoder.Decode(responseForBin)
+	err := decoder.Decode(&responseForBin)
 	if err != nil {
 		return nil, err
 	}
