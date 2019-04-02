@@ -12,8 +12,8 @@ import (
 )
 
 // Open behaves like bolt's Open, but works with gz and temp files
-func Open(path string, mode os.FileMode, options *bolt.Options, perm os.FileMode) (db *bolt.DB, tmpFile *os.File, err error) {
-	db, tmpFile, err = loadDbFromGz(path, perm)
+func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
+	db, tmpFile, err = loadDbFromGz(path, mode)
 	if err == nil {
 		return
 	}
@@ -28,7 +28,7 @@ func Open(path string, mode os.FileMode, options *bolt.Options, perm os.FileMode
 		return nil, nil, errors.New("cannot create temporary file")
 	}
 
-	db, err = bolt.Open(tmpFile.Name(), mode, options)
+	db, err = bolt.Open(tmpFile.Name(), 0600, options)
 	if err != nil {
 		return nil, nil, errors.New("cannot create temporary db")
 	}
