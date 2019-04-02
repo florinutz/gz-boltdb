@@ -1,8 +1,9 @@
 package gzbolt
 
 import (
+	"bytes"
 	"compress/gzip"
-	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"time"
@@ -15,11 +16,6 @@ import (
 func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tmpFile *os.File, err error) {
 	db, tmpFile, err = loadDbFromGz(path, mode)
 	if err == nil {
-		return
-	}
-
-	if _, e := os.Stat(path); !os.IsNotExist(e) {
-		err = fmt.Errorf("file '%s' exists, but the db was not loaded", path)
 		return
 	}
 
@@ -37,10 +33,10 @@ func Open(path string, mode os.FileMode, options *bolt.Options) (db *bolt.DB, tm
 }
 
 // loadDbFromGz unpacks and loads a bolt database
-func loadDbFromGz(gzPath string, perm os.FileMode) (db *bolt.DB, tmpFile *os.File, err error) {
+func loadDbFromGz(gzPath string) (db *bolt.DB, tmpFile *os.File, err error) {
 	var f *os.File
-	if f, err = os.OpenFile(gzPath, os.O_RDONLY, perm); err != nil {
-		err = errors.Wrapf(err, "could not open file '%s'", gzPath)
+	if f, err = os.Open(gzPath); err != nil {
+		err = errors.Wrapf(err, "could not open file '%s' for reading", gzPath)
 		return
 	}
 	defer f.Close()
@@ -50,14 +46,16 @@ func loadDbFromGz(gzPath string, perm os.FileMode) (db *bolt.DB, tmpFile *os.Fil
 		err = errors.Wrapf(err, "could not instantiate gz reader from '%s'", gzPath)
 		return
 	}
+	defer zr.Close()
 
 	var uncompressed []byte
-	n, err := zr.Read(uncompressed)
+	buf := bytes.NewBuffer(uncompressed)
+	written, err := io.Copy(buf, zr)
 	if err != nil {
 		err = errors.Wrapf(err, "could not read gz contents from '%s'", gzPath)
 		return
 	}
-	if n == 0 {
+	if written == 0 {
 		err = errors.New("nothing was uncompressed")
 		return
 	}
