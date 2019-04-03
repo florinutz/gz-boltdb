@@ -78,8 +78,13 @@ func (rg *GobResponse) ToResponse() (r *http.Response) {
 	return
 }
 
-// FetchUrls performs the requests in parallel and returns the responses (and errors)
-func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.Response, errs []error) {
+// FetchUrls performs the requests in parallel and returns the responses (and errors).
+// If not nil, the gotResponse callback is called when a response was retrieved. If it returns an error,
+// no more responses will be handled.
+func FetchUrls(
+	requests []*http.Request,
+	client http.Client,
+	gotResponse func(response *http.Response) error) (responses []*http.Response, errs []error) {
 	type reqRespErr struct {
 		req  *http.Request
 		resp *http.Response
@@ -109,6 +114,11 @@ func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.
 				continue
 			}
 			responses = append(responses, rre.resp)
+			if gotResponse != nil {
+				if err := gotResponse(rre.resp); err != nil {
+					break
+				}
+			}
 		case <-time.After(timeout):
 			errs = append(errs, fmt.Errorf("timeout after %s", timeout))
 		}
@@ -117,8 +127,16 @@ func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.
 	return
 }
 
-// DumpResponses fetches responses and dumps them into a gzipped bbolt database
-func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, gzHeader *gzip.Header) (errs []error) {
+// DumpResponses fetches responses and dumps them into a gzipped bbolt database.
+// If not nil, the gotResponse callback is called when a response was retrieved. If it returns an error,
+// no more responses will be handled.
+func DumpResponses(
+	reqs []*http.Request,
+	outputPath string,
+	bucketName string,
+	gzHeader *gzip.Header,
+	gotResponse func(response *http.Response) error,
+) (errs []error) {
 	// load db from compressed outputPath of create a new tmp file for it
 	db, err := gzbolt.Open(outputPath, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -127,7 +145,7 @@ func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, g
 	}
 	defer db.Close()
 
-	responses, es := FetchUrls(reqs, *http.DefaultClient)
+	responses, es := FetchUrls(reqs, *http.DefaultClient, gotResponse)
 	errs = append(errs, es...)
 
 	defer func(responses []*http.Response) {
