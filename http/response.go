@@ -302,7 +302,7 @@ func GetResponseFor(path string, bucketName string, request *http.Request,
 		}
 	}
 
-	return nil, nil
+	return nil, errors.New("no response was found")
 }
 
 func defaultMatchFunc(r1, r2 *http.Request) bool {
