@@ -119,21 +119,24 @@ func FetchUrls(requests []*http.Request, client http.Client) (responses []*http.
 }
 
 // DumpResponses fetches responses and dumps them into a gzipped bbolt database
-func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, gzHeader *gzip.Header) (err error) {
+func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, gzHeader *gzip.Header) (errs []error) {
 	// load db from compressed outputPath of create a new tmp file for it
 	db, err := gzbolt.Open(outputPath, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
+		errs = append(errs, err)
 		return
 	}
 	defer db.Close()
 
-	responses, errs := FetchUrls(reqs, *http.DefaultClient)
-	for _, err := range errs {
-		fmt.Fprintln(os.Stderr, err)
-	}
+	responses, es := FetchUrls(reqs, *http.DefaultClient)
+	errs = append(errs, es...)
+
 	defer func(responses []*http.Response) {
 		for _, r := range responses {
-			r.Body.Close()
+			err := r.Body.Close()
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}(responses)
 
@@ -164,11 +167,13 @@ func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, g
 
 		return nil
 	}); err != nil {
+		errs = append(errs, err)
 		return
 	}
 
 	err = gzbolt.WriteToGz(db, outputPath, 0700, gzHeader)
 	if err != nil {
+		errs = append(errs, err)
 		return
 	}
 
