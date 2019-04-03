@@ -250,3 +250,13 @@ func GetResponsesFromDB(db *bbolt.DB, bucketName []byte) (responses []*http.Resp
 
 	return
 }
+
+// GetResponsesFromGz unpacks the gz @ path in a tmp file, opens the bolt db in the tmp file
+// returns all the http.Response instances it finds there
+func GetResponsesFromGzDb(path string, bucketName []byte) ([]*http.Response, error) {
+	db, err := gzbolt.Open(path, &bbolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return nil, errors.Wrap(err, "error loading db")
+	}
+	return GetResponsesFromDB(db, bucketName)
+}
