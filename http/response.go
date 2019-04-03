@@ -138,7 +138,7 @@ func DumpResponses(
 	gotResponse func(response *http.Response) error,
 ) (errs []error) {
 	// load db from compressed outputPath of create a new tmp file for it
-	db, err := gzbolt.Open(outputPath, &bbolt.Options{Timeout: 1 * time.Second})
+	db, err := gzbolt.Open(outputPath, &bbolt.Options{Timeout: 1 * time.Second}, false)
 	if err != nil {
 		errs = append(errs, err)
 		return
@@ -274,10 +274,9 @@ func GetAllResponses(db *bbolt.DB, bucketName []byte) (responses []*http.Respons
 	return
 }
 
-// GetResponses unpacks the gz @ path in a tmp file, opens the bolt db in the tmp file
-// returns all the http.Response instances it finds there
+// GetResponses returns all the http.Response instances it finds in the gz
 func GetResponses(path string, bucketName string) ([]*http.Response, error) {
-	db, err := gzbolt.Open(path, &bbolt.Options{Timeout: 1 * time.Second})
+	db, err := gzbolt.Open(path, &bbolt.Options{Timeout: 1 * time.Second}, true)
 	if err != nil {
 		return nil, errors.Wrap(err, "error loading db")
 	}

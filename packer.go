@@ -14,10 +14,14 @@ import (
 
 // Open behaves like bolt's Open, but works by unpacking the path gz file into a temporary file
 // and using that as the db.
-// The options param is used while opening the database in the temporary file
-func Open(gzFilePath string, options *bolt.Options) (db *bolt.DB, err error) {
+// The options param is used while opening the database in the temporary file.
+// If the strict flag is set, the function will return an error instead of create a tmp database.
+func Open(gzFilePath string, options *bolt.Options, strict bool) (db *bolt.DB, err error) {
 	db, err = openGz(gzFilePath)
 	if err != nil {
+		if strict {
+			return nil, err
+		}
 		return createDbInTempFile(options)
 	}
 	return
