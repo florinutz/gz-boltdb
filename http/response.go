@@ -146,13 +146,13 @@ func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, g
 		gob.Register(http.Request{})
 
 		for _, resp := range responses {
-			key, err := getKeyBytes(*resp.Request)
+			key, err := GetKey(*resp.Request)
 			if err != nil {
 				return errors.Wrap(err, "couldn't generate key for request")
 			}
 
 			var content []byte
-			content, err = encodeResponse(resp)
+			content, err = EncodeResponse(resp)
 			if err != nil {
 				return errors.Wrap(err, "couldn't encode response to bytes")
 			}
@@ -175,7 +175,8 @@ func DumpResponses(reqs []*http.Request, outputPath string, bucketName string, g
 	return
 }
 
-func getKeyBytes(req http.Request) (key []byte, err error) {
+// GetKey computes the binary key to be used in bolt
+func GetKey(req http.Request) (key []byte, err error) {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
 	err = encoder.Encode(req)
@@ -187,7 +188,8 @@ func getKeyBytes(req http.Request) (key []byte, err error) {
 	return b[:], nil
 }
 
-func encodeResponse(resp *http.Response) (content []byte, err error) {
+// EncodeResponse computes the bytes to be stored in bolt for a http response
+func EncodeResponse(resp *http.Response) (content []byte, err error) {
 	responseForBin := GobResponse{}
 
 	gob.Register(responseForBin)
@@ -210,10 +212,9 @@ func encodeResponse(resp *http.Response) (content []byte, err error) {
 	return
 }
 
-func decodeResponse(from []byte) (*http.Response, error) {
+// DecodeResponse decodes from bolt into a http Response
+func DecodeResponse(from []byte) (*http.Response, error) {
 	responseForBin := GobResponse{}
-
-	// gob.Register(responseForBin)
 
 	decodedBuffer := bytes.NewReader(from)
 	decoder := gob.NewDecoder(decodedBuffer)
@@ -226,15 +227,15 @@ func decodeResponse(from []byte) (*http.Response, error) {
 	return responseForBin.ToResponse(), nil
 }
 
-// GetResponsesFromDB reads a bbolt db and looks for the existing responses
-func GetResponsesFromDB(db *bbolt.DB, bucketName []byte) (responses []*http.Response, err error) {
+// GetAllResponses reads a bbolt db and looks for the existing responses
+func GetAllResponses(db *bbolt.DB, bucketName []byte) (responses []*http.Response, err error) {
 	err = db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketName))
 		if bucket == nil {
 			return fmt.Errorf("no such bucket '%s'", bucketName)
 		}
 		if err := bucket.ForEach(func(k, v []byte) error {
-			resp, err := decodeResponse(v)
+			resp, err := DecodeResponse(v)
 			if err != nil {
 				return err
 			}
@@ -251,12 +252,38 @@ func GetResponsesFromDB(db *bbolt.DB, bucketName []byte) (responses []*http.Resp
 	return
 }
 
-// GetResponsesFromGz unpacks the gz @ path in a tmp file, opens the bolt db in the tmp file
+// GetResponses unpacks the gz @ path in a tmp file, opens the bolt db in the tmp file
 // returns all the http.Response instances it finds there
-func GetResponsesFromGzDb(path string, bucketName string) ([]*http.Response, error) {
+func GetResponses(path string, bucketName string) ([]*http.Response, error) {
 	db, err := gzbolt.Open(path, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, errors.Wrap(err, "error loading db")
 	}
-	return GetResponsesFromDB(db, []byte(bucketName))
+	return GetAllResponses(db, []byte(bucketName))
+}
+
+// GetResponseFor scans the bolt db for a request's response.
+// When nil, the matchFunc resolves to the key comparison.
+func GetResponseFor(path string, bucketName string, request *http.Request,
+	matchFunc func(r1, r2 *http.Request) bool) (*http.Response, error) {
+	responses, err := GetResponses(path, bucketName)
+	if err != nil {
+		return nil, err
+	}
+
+	if matchFunc == nil {
+		matchFunc = defaultMatchFunc
+	}
+
+	for _, r := range responses {
+		if matchFunc(r.Request, request) {
+			return r, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func defaultMatchFunc(r1, r2 *http.Request) bool {
+	return GetKey(*r1) == GetKey(*r2)
 }
