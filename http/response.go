@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/florinutz/gz-boltdb"
@@ -290,5 +289,13 @@ func GetResponseFor(path string, bucketName string, request *http.Request,
 }
 
 func defaultMatchFunc(r1, r2 *http.Request) bool {
-	return GetKey(*r1) == GetKey(*r2)
+	k1, err := GetKey(*r1)
+	if err != nil {
+		panic(err)
+	}
+	k2, err := GetKey(*r2)
+	if err != nil {
+		panic(err)
+	}
+	return string(k1) == string(k2)
 }
