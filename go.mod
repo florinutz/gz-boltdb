@@ -5,3 +5,5 @@ require (
 	go.etcd.io/bbolt v1.3.2
 	golang.org/x/sys v0.0.0-20190329044733-9eb1bfa1ce65 // indirect
 )
+
+go 1.13
