@@ -1,0 +1,13 @@
+language: go
+go:
+  - "1.13.x"
+notifications:
+  email: false
+git:
+  depth: 1
+env: GO111MODULE=on
+script:
+  - if [ -n "$(go fmt ./...)" ]; then exit 1; fi
+  - go test -race -v ./...
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
