@@ -18,26 +18,11 @@ const (
 )
 
 func TestPackUnpack(t *testing.T) {
-	db, err := getNewBoltDB(&bolt.Options{Timeout: 1 * time.Second})
+	db, err := newDbWithData(&bolt.Options{Timeout: 1 * time.Second}, Data)
 	if err != nil {
 		t.Fatalf(fmt.Errorf("can't get a new bolt db: %w", err).Error())
 	}
 	defer db.Close()
-
-	// add some data
-	if err = db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte(Bucket))
-		if err != nil {
-			return fmt.Errorf("error creating bucket: %w", err)
-		}
-		err = b.Put([]byte("data"), []byte(Data))
-		if err != nil {
-			return fmt.Errorf("error adding data to bucket: %w", err)
-		}
-		return nil
-	}); err != nil {
-		t.Fatalf(fmt.Errorf("error while adding data: %w", err).Error())
-	}
 
 	type args struct {
 		db       *bolt.DB
@@ -78,22 +63,27 @@ func TestPackUnpack(t *testing.T) {
 
 			t.Logf("successfully wrote and then opened %s", db)
 
-			if err = db.View(func(tx *bolt.Tx) error {
-				b := tx.Bucket([]byte(Bucket))
-				v := b.Get([]byte("data"))
-				if Data != string(v) {
-					return fmt.Errorf("retrieved '%s', wanted '%s'", string(v), Data)
-				}
-
-				t.Logf("retrieved data '%s' matched", v)
-
-				return nil
-			}); err != nil {
-				t.Fatalf(fmt.Errorf("data check fail: %w", err).Error())
+			if err = dbHasData(db, Data); err != nil {
+				t.Fatalf(fmt.Errorf("data check failed: %w", err).Error())
 			}
 
 		})
 	}
+}
+
+// checks if db's Bucket data
+func dbHasData(db *bolt.DB, data string) error {
+	if err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(Bucket))
+		v := b.Get([]byte("data"))
+		if data != string(v) {
+			return fmt.Errorf("retrieved '%s', wanted '%s'", string(v), data)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // mustGetFileStat fails the test if it can't retrieve the size
@@ -106,7 +96,8 @@ func mustGetFileStat(t *testing.T, file *os.File) os.FileInfo {
 	return fileInfo
 }
 
-func getNewBoltDB(options *bolt.Options) (*bolt.DB, error) {
+// initialize an empty bolt db in a temp file and add a piece of data
+func newDbWithData(options *bolt.Options, data string) (*bolt.DB, error) {
 	tmpFile, err := getTmpPath()
 	if err != nil {
 		return nil, fmt.Errorf("can't get a tmp file: %w", err)
@@ -115,6 +106,21 @@ func getNewBoltDB(options *bolt.Options) (*bolt.DB, error) {
 	db, err := bolt.Open(tmpFile, 0600, options)
 	if err != nil {
 		return nil, fmt.Errorf("can't create new db in tmp file: %w", err)
+	}
+
+	// add some data
+	if err = db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte(Bucket))
+		if err != nil {
+			return fmt.Errorf("error creating bucket: %w", err)
+		}
+		err = b.Put([]byte("data"), []byte(data))
+		if err != nil {
+			return fmt.Errorf("error adding data to bucket: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("error while adding data: %w", err)
 	}
 
 	return db, err
