@@ -3,6 +3,7 @@ package gzbolt
 import (
 	"bufio"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -36,7 +37,7 @@ func createDbInTempFile(options *bolt.Options) (*bolt.DB, error) {
 	}
 	tmpFileName := tmpFile.Name()
 	tmpFile.Close()
-	os.Remove(tmpFile.Name())
+	_ = os.Remove(tmpFile.Name())
 
 	db, err := bolt.Open(tmpFileName, 0600, options)
 	if err != nil {
@@ -48,7 +49,7 @@ func createDbInTempFile(options *bolt.Options) (*bolt.DB, error) {
 
 // openGz unpacks and loads a bolt database
 func openGz(gzPath string) (db *bolt.DB, err error) {
-	tmpFile, err := unpack(gzPath)
+	tmpFile, _, err := unpackToTMP(gzPath)
 	if err != nil {
 		err = errors.Wrapf(err, "couldn't unpack '%s'", gzPath)
 		return
@@ -64,38 +65,24 @@ func openGz(gzPath string) (db *bolt.DB, err error) {
 	return
 }
 
-func unpack(gzPath string) (tmpFile *os.File, err error) {
+func unpackToTMP(gzPath string) (tmpFile *os.File, written int64, err error) {
 	var f *os.File
 	if f, err = os.Open(gzPath); err != nil {
-		err = errors.Wrapf(err, "could not open file '%s' for reading", gzPath)
+		err = fmt.Errorf("could not open file '%s' for reading: %w", gzPath, err)
 		return
 	}
 	defer f.Close()
 
-	zr, err := gzip.NewReader(f)
-	if err != nil {
-		err = errors.Wrapf(err, "could not instantiate gz reader from '%s'", gzPath)
-		return
-	}
-	defer zr.Close()
-
 	// unpack in /tmp
 	tmpFile, err = ioutil.TempFile("", "gz-bolt-*.db")
 	if err != nil {
-		err = errors.Wrap(err, "cannot create temporary file")
+		err = fmt.Errorf("cannot create temporary file: %w", err)
 		return
 	}
+
 	w := bufio.NewWriter(tmpFile)
 
-	written, err := io.Copy(w, zr)
-	if err != nil {
-		err = errors.Wrapf(err, "could not read gz contents from '%s'", gzPath)
-		return
-	}
-	if written == 0 {
-		err = errors.New("nothing was uncompressed")
-		return
-	}
+	written, err = unpackStreams(f, w)
 
 	return
 }
@@ -122,4 +109,27 @@ func WriteToGz(db *bolt.DB, path string, perm os.FileMode, gzHeader *gzip.Header
 
 		return err
 	})
+}
+
+// unpackStreams unpacks gz from reader to writer and returns the number of bytes written.
+func unpackStreams(r io.Reader, w io.Writer) (written int64, err error) {
+	var zr *gzip.Reader
+	zr, err = gzip.NewReader(r)
+	if err != nil {
+		err = fmt.Errorf("could not instantiate gz reader: %w", err)
+		return
+	}
+	defer zr.Close()
+
+	written, err = io.Copy(w, zr)
+	if err != nil {
+		err = fmt.Errorf("could not read gz contents: %w", err)
+		return
+	}
+	if written == 0 {
+		err = fmt.Errorf("nothing was uncompressed")
+		return
+	}
+
+	return
 }
