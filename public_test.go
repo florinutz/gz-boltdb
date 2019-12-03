@@ -27,6 +27,7 @@ func TestPackUnpack(t *testing.T) {
 	type args struct {
 		db       *bolt.DB
 		gzHeader *gzip.Header
+		noWrite  bool
 	}
 	type test struct {
 		name string
@@ -39,6 +40,13 @@ func TestPackUnpack(t *testing.T) {
 				db: db,
 			},
 		},
+		{
+			name: "new db",
+			args: args{
+				db:      db,
+				noWrite: true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -49,11 +57,13 @@ func TestPackUnpack(t *testing.T) {
 			}
 			defer os.Remove(tmpfile.Name())
 
-			// Write
-			if err := Write(tt.args.db, tmpfile, tt.args.gzHeader); err != nil {
-				t.Fatalf(fmt.Errorf("error during write: %w", err).Error())
+			if !tt.args.noWrite {
+				// Write
+				if err := Write(tt.args.db, tmpfile, tt.args.gzHeader); err != nil {
+					t.Fatalf(fmt.Errorf("error during write: %w", err).Error())
+				}
+				t.Logf("size of tmp file after write: %d", mustGetFileStat(t, tmpfile).Size())
 			}
-			t.Logf("size of tmp file after write: %d", mustGetFileStat(t, tmpfile).Size())
 
 			// Open
 			db, err = Open(tmpfile.Name(), nil, false)
@@ -63,8 +73,10 @@ func TestPackUnpack(t *testing.T) {
 
 			t.Logf("successfully wrote and then opened %s", db)
 
-			if err = dbHasData(db, Data); err != nil {
-				t.Fatalf(fmt.Errorf("data check failed: %w", err).Error())
+			if !tt.args.noWrite {
+				if err = dbHasData(db, Data); err != nil {
+					t.Fatalf(fmt.Errorf("data check failed: %w", err).Error())
+				}
 			}
 
 		})
@@ -75,6 +87,9 @@ func TestPackUnpack(t *testing.T) {
 func dbHasData(db *bolt.DB, data string) error {
 	if err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Bucket))
+		if b == nil {
+			return fmt.Errorf("missing bucket")
+		}
 		v := b.Get([]byte("data"))
 		if data != string(v) {
 			return fmt.Errorf("retrieved '%s', wanted '%s'", string(v), data)
